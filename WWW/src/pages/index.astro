@@ -1,0 +1,31 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+---
+
+<Layout title="Check ur SANity">
+	<main class="p-4">
+		<div>
+			<h1><a href="https://relaymonkey.substack.com/p/the-dark-side-of-certificates" class="underline">SAN</a>ity Check™</h1>
+		</div>
+
+		<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-b-lg rounded-s-none rounded-e-lg" autofocus value="https://google.com"/>
+
+	</main>
+
+	<script>
+		async function check(url){
+			// grab the SAN of the SSL cert of the url
+			const res = await fetch(url, {
+				mode: 'cors',
+			});
+			console.log(res);
+		}
+
+		document.getElementById('input-main').addEventListener('keyup', function(e){
+			if(e.key === 'Enter'){
+				check(e.target.value);
+			}
+		});
+	</script>
+</Layout>
