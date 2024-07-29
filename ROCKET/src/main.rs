@@ -1,12 +1,9 @@
 #[macro_use]
 extern crate rocket;
-use std::{borrow::Borrow, io::Write, thread::panicking};
-
-use urlencoding::encode;
+use std::io::Write;
 use openssl::ssl::{SslConnector, SslMethod};
-use reqwest::Url;
-use rocket::{serde::{json::Json, Serialize}, tokio::net::TcpStream};
-use openssl::x509::X509;
+use rocket::serde::{json::Json, Serialize};
+use rocket_cors::{AllowedOrigins, CorsOptions};
 
 
 #[derive(Serialize)]
@@ -88,32 +85,28 @@ async fn get_san(url: &str) -> Result<Json<SANEntry>, String> {
     
     let mut root_output = SANEntry {
         host: url.to_string(),
-        success: false,
+        success: true,
         children: vec![]
     };
 
     let mut found_hosts = vec![];
     let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
 
-    let _ = openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector);
-
-    // for ent in oso.iter() {
-    //     if found_hosts.contains(&ent) {
-            
-    //     }
-    // }
-
-
-
-
+    openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector);
 
     return Ok(Json(root_output));
-
-    // return Err("error".to_string());
 }
 
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/", routes![get_san])
+    let allowed_origins =  AllowedOrigins::all();
+    let cors = CorsOptions {
+        allowed_origins,
+        ..Default::default()
+    }.to_cors().unwrap();
+
+    rocket::build()
+        .mount("/", routes![get_san])
+        .attach(cors)
 }

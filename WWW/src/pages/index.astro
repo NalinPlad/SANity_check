@@ -9,22 +9,47 @@ import Card from '../components/Card.astro';
 			<h1><a href="https://relaymonkey.substack.com/p/the-dark-side-of-certificates" class="underline">SAN</a>ity Check™</h1>
 		</div>
 
-		<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-b-lg rounded-s-none rounded-e-lg" autofocus value="https://google.com"/>
+		<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-s-lg rounded-e-full" autofocus value="https://google.com"/>
+
+		<div id="plot-div"></div>
 
 	</main>
 
 	<script>
-		async function check(url){
-			// grab the SAN of the SSL cert of the url
-			const res = await fetch(url, {
-				mode: 'cors',
-			});
-			console.log(res);
+		import { SERVER_URL } from "../constants";
+		import * as Plot from '@observablehq/plot';
+		import * as d3 from 'd3';
+
+		async function plot(url) {
+			const res = await fetch(SERVER_URL + "/query/" + encodeURI(url))
+			const resp = await res.json();
+			console.log(resp)
+
+			const plot = Plot.plot({
+				axis: null,
+				margin: 10,
+				marginLeft: 40,
+				marginRight: 160,
+				width: 928,
+				height: 1800,
+				marks: [
+					Plot.tree(d3.hierarchy(resp).leaves(), {
+					path: (node) => node.ancestors().reverse().map(({ data: { host } }) => host).join("|"),
+					delimiter: "|"
+					})
+				]
+			})
+
+			const div = document.querySelector("#plot-div");
+			div.append(plot);
+	
 		}
 
-		document.getElementById('input-main').addEventListener('keyup', function(e){
+		plot("netflix.com")
+
+		document.getElementById('input-main').addEventListener('keyup', async function(e){
 			if(e.key === 'Enter'){
-				check(e.target.value);
+				plot(e.target.value)
 			}
 		});
 	</script>
