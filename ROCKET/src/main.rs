@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate rocket;
-use std::io::Write;
+use std::{collections::HashMap, io::Write};
 use openssl::ssl::{SslConnector, SslMethod};
-use rocket::serde::{json::Json, Serialize};
+use rocket::{serde::{json::Json, Serialize}, tokio::sync::RwLock, State};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 
 
@@ -12,11 +12,21 @@ struct StatusMessage {
 }
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct SANEntry {
     host: String,
     success: bool,
     children: Vec<SANEntry>
+}
+
+struct SANCache {
+    data: RwLock<HashMap<String, SANCacheItem>>
+}
+
+struct SANCacheItem {
+    host: String,
+    cache_expire: u64,
+    data: SANEntry
 }
 
 fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut Vec<String>, connector: &SslConnector) {
@@ -79,10 +89,29 @@ fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut 
 }
 
 #[get("/query/<url>")]
-async fn get_san(url: &str) -> Result<Json<SANEntry>, String> {
+async fn get_san(url: &str, cache: &State<SANCache>) -> Result<Json<SANEntry>, String> {
     // url decode the parameter
     let url = urlencoding::decode(url).unwrap().into_owned();
+
+    println!("Received request for {}", url);
+
+    println!("Getting cache read lock...");
     
+    let cache_read = cache.data.read().await;
+
+    println!("Got cache read lock");
+    
+    if cache_read.contains_key(&url) {
+        let cache_item = cache_read.get(&url).unwrap();
+        // if cache_item.cache_expire TODO
+        println!("Reading from cache...");
+        return Ok(Json(cache_item.data.clone()));
+    }
+
+    drop(cache_read);
+
+    println!("Cache miss, scanning...");
+
     let mut root_output = SANEntry {
         host: url.to_string(),
         success: true,
@@ -92,7 +121,29 @@ async fn get_san(url: &str) -> Result<Json<SANEntry>, String> {
     let mut found_hosts = vec![];
     let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
 
+    println!("Starting scan...");
+
     openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector);
+
+    println!("Scan complete");
+
+    println!("Writing to cache...");
+
+    println!("Getting cache write lock...");
+
+    let mut cache_write = cache.data.write().await;
+
+    println!("Got cache write lock");
+
+    println!("Inserting into cache...");
+
+    cache_write.insert(url.clone(), SANCacheItem{
+        host: url.clone(),
+        cache_expire: 0,
+        data: root_output.clone()
+    });
+
+    println!("Inserted into cache");
 
     return Ok(Json(root_output));
 }
@@ -106,7 +157,12 @@ fn rocket() -> _ {
         ..Default::default()
     }.to_cors().unwrap();
 
+    let cache = SANCache {
+        data: HashMap::new().into()
+    };
+
     rocket::build()
+        .manage(cache)
         .mount("/", routes![get_san])
         .attach(cors)
 }
