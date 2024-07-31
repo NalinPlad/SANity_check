@@ -4,11 +4,17 @@ use std::{collections::HashMap, io::Write};
 use openssl::ssl::{SslConnector, SslMethod};
 use rocket::{serde::{json::Json, Serialize}, tokio::sync::RwLock, State};
 use rocket_cors::{AllowedOrigins, CorsOptions};
+use async_recursion::async_recursion;
 
 
 #[derive(Serialize)]
 struct StatusMessage {
     message: String
+}
+
+#[derive(Serialize)]
+struct CacheInfo {
+    num_entries: usize,
 }
 
 
@@ -24,33 +30,56 @@ struct SANCache {
 }
 
 struct SANCacheItem {
-    host: String,
     cache_expire: u64,
-    data: SANEntry
+    entry: SANEntry
 }
 
-fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut Vec<String>, connector: &SslConnector) {
+#[async_recursion]
+async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut Vec<String>, connector: &SslConnector, cache: &State<SANCache>) {
 
 
     // if found_vec.contains(&url.to_string()) {
     //     return;
     // }
 
-    // check if its a regular host url, not a wildcard
-    if url.contains("*") {
-        return;
+    println!("* {}", url);
+
+    let mut url = url.to_string();
+
+    if !found_vec.contains(&url.to_string().replace("*.", "")) {
+        url = url.replace("*.", "");
+        println!("following wildcard, {}", url);
     }
+
+    let url = url.as_str();
+
+    let cache_read = cache.data.read().await;
+
+    if cache_read.contains_key(url) {
+        let cache_item = cache_read.get(url).unwrap();
+        println!("Reading from cache...");
+        // if cache_item.cache_expire TODO
+        return parent_node.children.push(cache_item.entry.clone());
+    }
+
     
-    println!("{} Scanning right now ", url);
+    // check if its a regular host url, not a wildcard
+    // if url.contains("*") {
+    //TODO: this causes something wierd
+    // }
+        
+    drop(cache_read);
+
+    println!("Starting scan for {}", url);
     
-    let stream = std::net::TcpStream::connect((url, 443));
+    let stream = std::net::TcpStream::connect((url.clone(), 443));
 
     if stream.is_err() {
         parent_node.success = false;
         return;
     }
 
-    let stream = connector.connect(url, stream.unwrap());
+    let stream = connector.connect(&url, stream.unwrap());
 
     if stream.is_err() {
         parent_node.success = false;
@@ -69,6 +98,9 @@ fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut 
     for ent in x509.subject_alt_names().unwrap().iter() {
         if !found_vec.contains(&ent.dnsname().unwrap().to_string()) {
             let san = ent.dnsname().unwrap();
+
+ 
+
     
             let mut child = SANEntry {
                 host: san.to_string(),
@@ -77,13 +109,25 @@ fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut 
             };
     
             found_vec.push(ent.dnsname().unwrap().to_string());
-            openssl_san_recursive(ent.dnsname().unwrap(), &mut child, found_vec, &connector);
+            openssl_san_recursive(ent.dnsname().unwrap(), &mut child, found_vec, &connector, cache).await;
 
             parent_node.children.push(child);
         }
 
 
     }
+
+    println!("Finished scan for {}", url);
+
+    let mut cache_write = cache.data.write().await;
+
+    println!("Inserting {} into cache...", url);
+
+    cache_write.insert(url.to_string(), SANCacheItem{
+        cache_expire: 0,
+        entry: parent_node.clone()
+    });
+
 
     
 }
@@ -93,24 +137,26 @@ async fn get_san(url: &str, cache: &State<SANCache>) -> Result<Json<SANEntry>, S
     // url decode the parameter
     let url = urlencoding::decode(url).unwrap().into_owned();
 
-    println!("Received request for {}", url);
+    println!("=== Received request for {}", url);
 
-    println!("Getting cache read lock...");
+    // println!("Getting cache read lock...");
     
-    let cache_read = cache.data.read().await;
+    // let cache_read = cache.data.read().await;
 
-    println!("Got cache read lock");
+    // println!("Got cache read lock");
     
-    if cache_read.contains_key(&url) {
-        let cache_item = cache_read.get(&url).unwrap();
-        // if cache_item.cache_expire TODO
-        println!("Reading from cache...");
-        return Ok(Json(cache_item.data.clone()));
-    }
+    // if cache_read.contains_key(&url) {
+    //     let cache_item = cache_read.get(&url).unwrap();
+    //     // if cache_item.cache_expire TODO
+    //     println!("Reading from cache...");
+    //     return Ok(Json(cache_item.entry.clone()));
+    // }
 
-    drop(cache_read);
+    // drop(cache_read);
 
-    println!("Cache miss, scanning...");
+    // println!("Cache miss, scanning...");
+
+    // TODO: move cache to openssl function to make it recursively cache things, will be orders of magnitude faster
 
     let mut root_output = SANEntry {
         host: url.to_string(),
@@ -121,33 +167,34 @@ async fn get_san(url: &str, cache: &State<SANCache>) -> Result<Json<SANEntry>, S
     let mut found_hosts = vec![];
     let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
 
-    println!("Starting scan...");
+    openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector, cache).await;
 
-    openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector);
+    // println!("Writing to cache...");
 
-    println!("Scan complete");
+    // println!("Getting cache write lock...");
 
-    println!("Writing to cache...");
+    // let mut cache_write = cache.data.write().await;
 
-    println!("Getting cache write lock...");
+    // println!("Got cache write lock");
 
-    let mut cache_write = cache.data.write().await;
+    // println!("Inserting into cache...");
 
-    println!("Got cache write lock");
+    // cache_write.insert(url.clone(), SANCacheItem{
+    //     cache_expire: 0,
+    //     entry: root_output.clone()
+    // });
 
-    println!("Inserting into cache...");
-
-    cache_write.insert(url.clone(), SANCacheItem{
-        host: url.clone(),
-        cache_expire: 0,
-        data: root_output.clone()
-    });
-
-    println!("Inserted into cache");
+    // println!("Inserted into cache");
 
     return Ok(Json(root_output));
 }
 
+#[get("/stats/cache")]
+async fn get_stats(cache: &State<SANCache>) -> Json<CacheInfo> {
+    Json(CacheInfo {
+        num_entries: cache.data.read().await.len()
+    })
+}
 
 #[launch]
 fn rocket() -> _ {
@@ -163,6 +210,6 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(cache)
-        .mount("/", routes![get_san])
+        .mount("/", routes![get_san, get_stats])
         .attach(cors)
 }

@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-recursion = "1.1.1"
 openssl = "0.10.66"
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"

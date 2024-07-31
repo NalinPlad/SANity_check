@@ -5,13 +5,18 @@ import Card from '../components/Card.astro';
 
 <Layout title="Check ur SANity">
 	<main class="p-4">
-		<div>
-			<h1><a href="https://relaymonkey.substack.com/p/the-dark-side-of-certificates" class="underline">SAN</a>ity Check™</h1>
+		<div class="flex gap-2 items-center">
+			<div>
+				<h1><a href="https://relaymonkey.substack.com/p/the-dark-side-of-certificates" class="underline">SAN</a>ity Check™</h1>
+				<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-s-lg rounded-e-full bg-slate-100" autofocus value="google.com"/>
+			</div>
+			<div class="flex items-center gap-2 bg-slate-100 p-3 h-fit rounded-lg">
+				<p id="stats"></p><div class="w-1 h-1 bg-green-500 rounded-full"/>
+			</div>
 		</div>
 
-		<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-s-lg rounded-e-full" autofocus value="https://google.com"/>
 
-		<div id="plot-div"></div>
+		<div id="plot-div" class=""></div>
 
 	</main>
 
@@ -20,32 +25,68 @@ import Card from '../components/Card.astro';
 		import * as Plot from '@observablehq/plot';
 		import * as d3 from 'd3';
 
-		async function plot(url) {
-			const res = await fetch(SERVER_URL + "/query/" + encodeURI(url))
+		async function stats(url) {
+			const res = await fetch(SERVER_URL + "/stats/cache")
 			const resp = await res.json();
-			console.log(resp)
+			document.getElementById('stats').innerText = resp.num_entries + " entries in cache";
+		}
+
+		stats();
+
+		async function plot(url) {
+			const res = await fetch(SERVER_URL + "/query/" + encodeURIComponent(url))
+			const resp = await res.json();
+
+			function indent() {
+				return (root) => {
+					root.eachBefore((node, i) => {
+						node.y = node.depth;
+						node.x = i;
+					});
+				};
+			}
+
+			let numEntries = 0;
+
+			function countNodes(node) {
+				numEntries++;
+				if (node.children) {
+					node.children.forEach(countNodes);
+				}
+			}
+
+			countNodes(resp);
 
 			const plot = Plot.plot({
 				axis: null,
-				margin: 10,
-				marginLeft: 40,
-				marginRight: 160,
-				width: 928,
-				height: 1800,
+				inset: 100,
+				// insetRight: 100,
+				// marginLeft: 40,
+				// marginRight: 160,
+				width: 2000,
+				height: 15*numEntries,
 				marks: [
 					Plot.tree(d3.hierarchy(resp).leaves(), {
-					path: (node) => node.ancestors().reverse().map(({ data: { host } }) => host).join("|"),
-					delimiter: "|"
+						path: (node) => node.ancestors().reverse().map(({ data: { host } }) => host).join("|"),
+						delimiter: "|",
+						treeLayout: indent,
+						fontSize: 10,
+						strokeWidth: 1,
+						curve: "step-before",
+						textStroke: "none"
 					})
 				]
 			})
 
 			const div = document.querySelector("#plot-div");
+			div.innerHTML = "";
+			// plot.style.width = "100vw";
+			// plot.style.height = "100vh";
 			div.append(plot);
 	
 		}
 
-		plot("netflix.com")
+		plot("google.com")
 
 		document.getElementById('input-main').addEventListener('keyup', async function(e){
 			if(e.key === 'Enter'){
