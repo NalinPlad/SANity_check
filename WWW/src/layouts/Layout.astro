@@ -19,5 +19,60 @@ const { title } = Astro.props;
 	<body>
 		<slot />
 	</body>
+	<style is:global>
+
+
+.tree {
+    list-style-type: none;
+    /* padding-inline: 15px; */
+	margin-left: 10px;
+    position: relative;
+	font-family: monospace
+	/* margin: 1rem; */
+}
+
+.tree > li > span::after {
+
+}
+
+.tree > li > span[data-status-color="green"]::after {
+	content: ' >';
+	color: lightgray
+}
+
+.tree > li > span[data-status-color="red"]::after {
+	content: ' !';
+	font-weight: bold;
+	color: red;
+}
+
+.tree::before {
+	content: '┗';
+	color: lightgray;
+	position: absolute;
+	top: 0px;
+	/* width: 1px; */
+	/* height: calc(100% - 15px); */
+	/* border-left: 1px solid #ccc; */
+	left: -12px;
+}
+
+/* stop the top level ul form having an extra shift */
+div > ul {
+	margin-left: 0 !important;
+}
+
+div > ul::before {
+	content: '?' !important;
+}
+
+/* Each node (li) in the tree */
+.tree li {
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+
+	</style>
 </html>
 

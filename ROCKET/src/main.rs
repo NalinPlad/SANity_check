@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate rocket;
-use std::{collections::HashMap, io::Write};
+use std::{collections::HashMap, io::Write, net::ToSocketAddrs};
 use openssl::ssl::{SslConnector, SslMethod};
 use rocket::{serde::{json::Json, Serialize}, tokio::sync::RwLock, State};
 use rocket_cors::{AllowedOrigins, CorsOptions};
@@ -46,7 +46,7 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
 
     let mut url = url.to_string();
 
-    if !found_vec.contains(&url.to_string().replace("*.", "")) {
+    if url.contains("*") && !found_vec.contains(&url.to_string().replace("*.", "")) {
         url = url.replace("*.", "");
         println!("following wildcard, {}", url);
     }
@@ -70,9 +70,24 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
         
     drop(cache_read);
 
-    println!("Starting scan for {}", url);
     
-    let stream = std::net::TcpStream::connect((url.clone(), 443));
+    let mut tcp_url = String::from(url);
+    tcp_url.push_str(":443");
+
+    let tcp_url_soc = tcp_url.to_socket_addrs();
+
+    if tcp_url_soc.is_err() {
+        parent_node.success = false;
+        println!("Failed to resolve {}", tcp_url);
+        return;
+    }
+
+    let tcp_url = tcp_url_soc.unwrap().next().unwrap();
+    
+    println!("Starting scan for {}", url);
+    // TODO: configurable timeout
+    let stream = std::net::TcpStream::connect_timeout(&tcp_url, std::time::Duration::from_millis(1000));
+
 
     if stream.is_err() {
         parent_node.success = false;
@@ -83,6 +98,7 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
 
     if stream.is_err() {
         parent_node.success = false;
+        println!("Failed to connect to {}", url);
         return;
     }
 
@@ -98,23 +114,23 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
     for ent in x509.subject_alt_names().unwrap().iter() {
         if !found_vec.contains(&ent.dnsname().unwrap().to_string()) {
             let san = ent.dnsname().unwrap();
-
- 
-
     
-            let mut child = SANEntry {
+            let child = SANEntry {
                 host: san.to_string(),
                 success: true,
                 children: vec![]
             };
     
             found_vec.push(ent.dnsname().unwrap().to_string());
-            openssl_san_recursive(ent.dnsname().unwrap(), &mut child, found_vec, &connector, cache).await;
-
             parent_node.children.push(child);
+            
         }
-
-
+        
+        
+    }
+    
+    for mut child in parent_node.children.iter_mut() {
+        openssl_san_recursive(&child.host.clone(), &mut child, found_vec, &connector, cache).await;
     }
 
     println!("Finished scan for {}", url);

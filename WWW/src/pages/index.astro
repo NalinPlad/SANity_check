@@ -8,22 +8,23 @@ import Card from '../components/Card.astro';
 		<div class="flex gap-2 items-center">
 			<div>
 				<h1><a href="https://relaymonkey.substack.com/p/the-dark-side-of-certificates" class="underline">SAN</a>ity Check™</h1>
-				<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-s-lg rounded-e-full bg-slate-100" autofocus value="google.com"/>
+				<input type="text" placeholder="Enter hostname or IP" id="input-main" class="border-black p-1 border-solid border-2 rounded-s-lg rounded-e-full bg-slate-100" autofocus value="example.com"/>
 			</div>
-			<div class="flex items-center gap-2 bg-slate-100 p-3 h-fit rounded-lg">
+			<div class="flex items-center gap-2 bg-slate-100 p-3 h-fit rounded-lg shadow-md">
 				<p id="stats"></p><div class="w-1 h-1 bg-green-500 rounded-full"/>
 			</div>
 		</div>
 
 
-		<div id="plot-div" class=""></div>
+		<div id="plot-div" class="m-10 bg-slate-100 rounded-md p-5 shadow-md w-fit"></div>
 
 	</main>
 
+
 	<script>
 		import { SERVER_URL } from "../constants";
-		import * as Plot from '@observablehq/plot';
-		import * as d3 from 'd3';
+		// import * as Plot from '@observablehq/plot';
+		// import * as d3 from 'd3';
 
 		async function stats(url) {
 			const res = await fetch(SERVER_URL + "/stats/cache")
@@ -33,60 +34,46 @@ import Card from '../components/Card.astro';
 
 		stats();
 
+		// setI
+
+		function createTreeElement(data) {
+			const ul = document.createElement('ul');
+			ul.className = 'tree';
+
+			data.children.forEach(child => {
+				const li = document.createElement('li');
+				const span = document.createElement('span');
+				span.textContent = child.host;
+				span.dataset.statusColor = child.success == true ? 'green' : 'red';
+				li.appendChild(span);
+				
+				// Recursively create subdirectories
+				if (child.children.length > 0) {
+					li.appendChild(createTreeElement(child));
+				}
+
+				ul.appendChild(li);
+			});
+
+			return ul;
+		}
+
 		async function plot(url) {
 			const res = await fetch(SERVER_URL + "/query/" + encodeURIComponent(url))
 			const resp = await res.json();
 
-			function indent() {
-				return (root) => {
-					root.eachBefore((node, i) => {
-						node.y = node.depth;
-						node.x = i;
-					});
-				};
-			}
-
-			let numEntries = 0;
-
-			function countNodes(node) {
-				numEntries++;
-				if (node.children) {
-					node.children.forEach(countNodes);
-				}
-			}
-
-			countNodes(resp);
-
-			const plot = Plot.plot({
-				axis: null,
-				inset: 100,
-				// insetRight: 100,
-				// marginLeft: 40,
-				// marginRight: 160,
-				width: 2000,
-				height: 15*numEntries,
-				marks: [
-					Plot.tree(d3.hierarchy(resp).leaves(), {
-						path: (node) => node.ancestors().reverse().map(({ data: { host } }) => host).join("|"),
-						delimiter: "|",
-						treeLayout: indent,
-						fontSize: 10,
-						strokeWidth: 1,
-						curve: "step-before",
-						textStroke: "none"
-					})
-				]
-			})
 
 			const div = document.querySelector("#plot-div");
+
+			const treeElement = createTreeElement(resp);
+
 			div.innerHTML = "";
-			// plot.style.width = "100vw";
-			// plot.style.height = "100vh";
-			div.append(plot);
+
+			div.appendChild(treeElement)
 	
 		}
 
-		plot("google.com")
+		plot("example.com")
 
 		document.getElementById('input-main').addEventListener('keyup', async function(e){
 			if(e.key === 'Enter'){
@@ -94,4 +81,6 @@ import Card from '../components/Card.astro';
 			}
 		});
 	</script>
+
+
 </Layout>
