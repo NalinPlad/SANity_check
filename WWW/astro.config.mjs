@@ -10,6 +10,10 @@ export default defineConfig({
     plugins: [basicSsl()],
     server: {
       https: true,
+      watch: {
+        ignored: ['**/target/**'],
+        // cwd: './WWW',
+      }
     },
   },
 });

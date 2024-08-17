@@ -15,6 +15,11 @@ import Card from '../components/Card.astro';
 			</div>
 		</div>
 
+		<div class="mt-1">
+			What is this?
+			
+		</div>
+
 
 		<div id="plot-div" class="m-10 bg-slate-100 rounded-md p-5 shadow-md w-fit"></div>
 
@@ -77,7 +82,7 @@ import Card from '../components/Card.astro';
 
 		document.getElementById('input-main').addEventListener('keyup', async function(e){
 			if(e.key === 'Enter'){
-				plot(e.target.value)
+				plot(e.target.value);thingg
 			}
 		});
 	</script>
