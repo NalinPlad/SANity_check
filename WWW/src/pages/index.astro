@@ -65,15 +65,17 @@ import Card from '../components/Card.astro';
 		}
 
 		async function plot(url) {
-			const res = await fetch(SERVER_URL + "/query/" + encodeURIComponent(url))
-			const resp = await res.json();
-
-
 			const div = document.querySelector("#plot-div");
 
-			const treeElement = createTreeElement(resp);
-
+			div.innerHTML = "Loading results for " + url + "...";
+			
+			const res = await fetch(SERVER_URL + "/query/" + encodeURIComponent(url))
+			const resp = await res.json();
+			
 			div.innerHTML = "";
+
+
+			const treeElement = createTreeElement(resp);
 
 			div.appendChild(treeElement)
 	
