@@ -135,14 +135,14 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
 
     println!("Finished scan for {}", url);
 
-    let mut cache_write = cache.data.write().await;
+    // let mut cache_write = cache.data.write().await;
 
-    println!("Inserting {} into cache...", url);
+    // println!("Inserting {} into cache...", url);
 
-    cache_write.insert(url.to_string(), SANCacheItem{
-        cache_expire: 0,
-        entry: parent_node.clone()
-    });
+    // cache_write.insert(url.to_string(), SANCacheItem{
+    //     cache_expire: 0,
+    //     entry: parent_node.clone()
+    // });
 
 
     
@@ -185,22 +185,22 @@ async fn get_san(url: &str, cache: &State<SANCache>) -> Result<Json<SANEntry>, S
 
     openssl_san_recursive(&url, &mut root_output, &mut found_hosts, &connector, cache).await;
 
-    // println!("Writing to cache...");
+    println!("Writing to cache...");
 
-    // println!("Getting cache write lock...");
+    println!("Getting cache write lock...");
 
-    // let mut cache_write = cache.data.write().await;
+    let mut cache_write = cache.data.write().await;
 
-    // println!("Got cache write lock");
+    println!("Got cache write lock");
 
-    // println!("Inserting into cache...");
+    println!("Inserting into cache...");
 
-    // cache_write.insert(url.clone(), SANCacheItem{
-    //     cache_expire: 0,
-    //     entry: root_output.clone()
-    // });
+    cache_write.insert(url.clone(), SANCacheItem{
+        cache_expire: 0,
+        entry: root_output.clone()
+    });
 
-    // println!("Inserted into cache");
+    println!("Inserted into cache");
 
     return Ok(Json(root_output));
 }
