@@ -53,14 +53,14 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
 
     let url = url.as_str();
 
-    let cache_read = cache.data.read().await;
+    // let cache_read = cache.data.read().await;
 
-    if cache_read.contains_key(url) {
-        let cache_item = cache_read.get(url).unwrap();
-        println!("Reading from cache...");
-        // if cache_item.cache_expire TODO
-        return parent_node.children.push(cache_item.entry.clone());
-    }
+    // if cache_read.contains_key(url) {
+    //     let cache_item = cache_read.get(url).unwrap();
+    //     println!("Reading from cache...");
+    //     // if cache_item.cache_expire TODO
+    //     return parent_node.children.push(cache_item.entry.clone());
+    // }
 
     
     // check if its a regular host url, not a wildcard
@@ -68,7 +68,7 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
     //TODO: this causes something wierd
     // }
         
-    drop(cache_read);
+    // drop(cache_read);
 
     
     let mut tcp_url = String::from(url);
@@ -155,20 +155,20 @@ async fn get_san(url: &str, cache: &State<SANCache>) -> Result<Json<SANEntry>, S
 
     println!("=== Received request for {}", url);
 
-    // println!("Getting cache read lock...");
+    println!("Getting cache read lock...");
     
-    // let cache_read = cache.data.read().await;
+    let cache_read = cache.data.read().await;
 
-    // println!("Got cache read lock");
+    println!("Got cache read lock");
     
-    // if cache_read.contains_key(&url) {
-    //     let cache_item = cache_read.get(&url).unwrap();
-    //     // if cache_item.cache_expire TODO
-    //     println!("Reading from cache...");
-    //     return Ok(Json(cache_item.entry.clone()));
-    // }
+    if cache_read.contains_key(&url) {
+        let cache_item = cache_read.get(&url).unwrap();
+        // if cache_item.cache_expire TODO
+        println!("Reading from cache...");
+        return Ok(Json(cache_item.entry.clone()));
+    }
 
-    // drop(cache_read);
+    drop(cache_read);
 
     // println!("Cache miss, scanning...");
 
