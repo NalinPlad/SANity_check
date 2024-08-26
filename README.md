@@ -15,3 +15,5 @@ Changing ports at runtime is not currently supported, change the hardcoded value
 SANity has a standalone frontend project, seperate from the server. 
 Navigate to `WWW` and run the `dev` alias in the package.json. For example, `yarn run dev`, or `npm run dev`. 
 Make sure to install the dependancies first; `yarn install`, `npm install`.
+
+You can see a static example scan of google.com located at [https://notmysql.hackclub.app/SAN.html](https://notmysql.hackclub.app/SAN.html)
