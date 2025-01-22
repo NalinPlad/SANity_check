@@ -37,11 +37,6 @@ struct SANCacheItem {
 #[async_recursion]
 async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec: &mut Vec<String>, connector: &SslConnector, cache: &State<SANCache>) {
 
-
-    // if found_vec.contains(&url.to_string()) {
-    //     return;
-    // }
-
     println!("* {}", url);
 
     let mut url = url.to_string();
@@ -126,7 +121,7 @@ async fn openssl_san_recursive(url: &str, parent_node: &mut SANEntry, found_vec:
             
         }
         
-        
+
     }
     
     for mut child in parent_node.children.iter_mut() {
